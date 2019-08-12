@@ -1,0 +1,207 @@
+var express = require("express");
+var path = require("path");
+var mysql = require("mysql");
+var app = express();
+var bodyParser = require('body-parser');
+var md5 = require('md5');
+var multer = require('multer');
+app.use(express.static(path.join(__dirname, "views")));
+app.use(express.static(path.join(__dirname, "uploads")));
+app.use(bodyParser.urlencoded({
+extended: true
+}));
+app.use(bodyParser.json());
+var storage = multer.diskStorage({
+    destination: function(req, file, callback) {
+        callback(null, './uploads/user');
+    },
+    filename: function(req, file, callback) {
+        var fileUniqueName = md5(Date.now());
+        callback(null,  fileUniqueName + path.extname(file.originalname));
+    }
+});
+var upload = multer({ storage: storage });
+var connection = mysql.createConnection({
+  host     : 'localhost',
+  user     : 'root',
+  password : '',
+  database : 'fluper_test'
+});
+ connection.connect();
+// For login code
+	app.post('/login', function(req, res) {
+		var email = req.body.email;
+		var password = req.body.password;
+		var sql = "SELECT * FROM `user` WHERE `email`=? AND `password`=?";
+		var password = md5(password);
+		var values = [email, password];
+		connection.query(sql, values, function(err,result){
+			if (err) {
+				var error={
+				status : 0,
+				message : "error in execution";
+				}
+				res.send(error);
+			} else {
+				if ( result.length > 0 ) {
+					result[0].password = "";
+					var response = {
+						status: 1,
+						response: result[0]
+							}
+					res.send(response);
+				} else {
+					var response = {
+						status: 0,
+						response: "Invalid Credential"
+					}
+					res.send(response);
+				}
+			}
+		});
+	});
+// For signup code
+	app.post('/signup', function(req, res) {
+		var name = req.body.name;
+		var email = req.body.email;
+		var password = req.body.password;
+		var text = "";
+		var random = "123456789";
+		for (var i = 0; i < 4; i++) {
+		text += random.charAt(Math.floor(Math.random() * random.length));
+		}
+		var user_id = md5(text);
+		var password = md5(password);
+		var sql = "SELECT * FROM `user` WHERE `email`=?";
+		var values = [email, password];
+		connection.query(sql, values, function(err, result){
+			if (err) {
+				var error={
+				status : 0,
+				message : "error in execution";
+				}
+				res.send(error);
+			} else if (result.length >0 ){
+				res.send('Email is already registered');
+			} else {
+				var sql = "INSERT INTO `user`(`user_id`, `name`, `email`, `password`) VALUES (?,?,?,?)";
+				var values = [user_id, name, email, password];
+				connection.query(sql, values, function(err, result){
+					if (err) {
+						var error={
+						status : 0,
+						message: "error in execution";
+						}
+						res.send(error);
+					} else {
+						res.send('success');
+					}
+				});
+			}
+		});
+	});
+ //for Task insert code
+  	app.post('/save', function(req, res) {
+		var userid = req.body.userid;
+		var task = req.body.task;
+		var date = req.body.date;
+		var sql = "INSERT INTO `task1`(`userid`, `task`, `date`) VALUES (?,?,?)";
+		var values = [userid,task,date];
+		connection.query(sql, values, function(err, result){
+			if (err) {
+				var error={
+				status : 0,
+				message: "error in execution";
+				}
+				res.send(error);
+			} else {
+				res.send('success');
+				}
+			});
+	});
+ //for Task update code
+	app.post('/update', function(req, res) {
+		var userid = req.body.userid;
+		var task = req.body.task;
+		var date = req.body.date;
+		var sql = "update task1 set `task`=?,`date`=? WHERE `userid`=?";
+		var values = [task,date, userid];
+		connection.query(sql,values,function(err, result){
+			if (err) {
+				var error={
+				status : 0,
+				message: "error in execution";
+				}
+				res.send(error);
+			} else {
+				res.send('success');
+				}
+			});
+	});
+// for delete  Task
+	app.post('/delete', function(req, res) {
+		var userid = req.body.userid;
+		var sql = "delete from task1 WHERE `userid`=?";
+		var values = [userid];
+		connection.query(sql,values,function(err, result){
+			if (err) {
+				var error={
+				status : 0,
+				message: "error in execution";
+				}
+				res.send(error);
+			} else {
+				res.send('success');
+				}
+			});
+	});
+  // for view details
+	app.post('/viewUser', function(req, res) {
+		var email = req.body.email;
+		var sql = "SELECT * FROM `user` WHERE `email`!=?";
+		var values = [email];
+		connection.query(sql,values,function(err, result){
+			if (err) {
+				var error={
+				status : 0,
+				message: "error in execution";
+				}
+				res.send(error);
+			} else {
+				res.send(result);
+				}
+		});
+	});		
+// for imageupload
+	app.post('/uploadImage', upload.single('image'), function(req, res){
+		var file = req.file;
+		var user_id = req.body.user_id;
+		if ( file == undefined ) {
+			var error={
+			status : 0,
+			message: "error in execution";
+			}
+			res.send(error);
+		} else {
+			var sql = "UPDATE `user` SET `profile_image`=? WHERE `user_id`=?";
+			connection.query(sql, [file.filename, user_id], function(err, result){
+			if (err){
+				var error={
+				status : 0,
+				message: "error in execution";
+				}
+				res.send(error);
+			} else {
+				var response = {
+				status: 1,
+				message: "Upload successfully."
+				}
+				res.send(response);
+				}
+			});
+		}
+	});
+// for server start
+	app.listen('3001', function(){
+		console.log("Server is running on port no. 3001");
+	});
